@@ -1,0 +1,46 @@
+# BaiduPCS-Rust 编译选项
+# 通过 make menuconfig -> Network -> File Transfer -> baidupcs-rust 进入
+
+menu "BaiduPCS-Rust 编译选项"
+	depends on PACKAGE_baidupcs-rust
+
+config BAIDUPCS_RUST_FRONTEND
+	bool "捆绑内置 Web UI 静态资源（约 2.3 MB）"
+	default y
+	help
+		安装已构建的 Vue 3 前端产物到工作目录 frontend/。
+		禁用后仍可运行（纯 API 模式），但浏览器访问将没有管理界面；
+		可自行在 runtime 工作目录放置 frontend/ 资源。
+
+config BAIDUPCS_RUST_DECRYPT_CLI
+	bool "编译并安装独立解密工具 decrypt-cli"
+	default n
+	help
+		安装 /usr/bin/decrypt-cli，可在不启动主程序的情况下批量解密
+		客户端侧加密（AES-256-GCM / ChaCha20-Poly1305）的文件。
+		密钥需与 config/encryption.json、baidu-pcs.db 中的映射一起备份。
+
+config BAIDUPCS_RUST_STATIC_MUSL
+	bool "全静态 musl 链接（crt-static，需构建宿主 rustup 工具链）"
+	default n
+	help
+		默认关闭：使用 OpenWrt 集成 Rust 工具链（packages feed 的
+		rust/host），与固件 musl libc 动态链接，产物体积小、与固件一致。
+
+		开启后：使用构建宿主上 rustup 安装的官方工具链（自动匹配
+		backend/rust-toolchain.toml 固定的 1.87.0），并以 crt-static
+		产出不依赖固件 libc 的自包含二进制（rust-lld 自包含链接）。
+		需要提前执行 rustup 安装脚本；构建时会自动添加目标 std：
+		rustup target add <目标三元组>。
+
+		注意：开启本选项时可注释 Makefile 中 PKG_BUILD_DEPENDS:=rust/host
+		以跳过 OpenWrt Rust 工具链的构建；mips64 目标仅支持本模式。
+
+config BAIDUPCS_RUST_WORKDIR
+	string "运行时工作目录（config/db/wal/logs/frontend 资源）"
+	default "/opt/baidupcs-rust"
+	help
+		程序按当前工作目录读取 ./config/app.toml、./frontend 等，
+		init.d 启动脚本会把该目录作为 procd cwd。
+		建议指向外部存储（extroot/USB 硬盘）以容纳下载数据与 SQLite/WAL。
+endmenu

@@ -1,0 +1,11 @@
+{
+	"admin/services/baidupcs-rust": {
+		"title": "BaiduPCS-Rust",
+		"order": 65,
+		"action": { "type": "view", "path": "baidupcs-rust/page" },
+		"depends": {
+			"auth": true,
+			"fs": { "/usr/bin/baidu-netdisk-rust": "executable" }
+		}
+	}
+}
