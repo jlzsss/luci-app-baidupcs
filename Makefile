@@ -213,19 +213,28 @@ define Build/Compile/Crate
 		$(if $(filter --jobserver%,$(PKG_JOBS)),,-j1)
 endef
 
-define Build/Compile
-ifneq ($(CONFIG_BAIDUPCS_RUST_STATIC_MUSL),y)
-	$(call Build/Compile/Crate,$(STAGING_DIR_HOST)/bin/cargo,$(CARGO_DYNAMIC_VARS),backend)
+# 静态/动态模式选择必须放在 define 之外（make 条件指令不能出现在
+# Build/Compile 这类会被展开进 recipe 的 define 内部，否则行首会被
+# 附加 tab，导致 ifneq 变成 shell 行，进而报 "extraneous else"）。
+ifeq ($(CONFIG_BAIDUPCS_RUST_STATIC_MUSL),y)
+  BAIDUPCS_CARGO_BIN:=$(CARGO_STATIC_BIN)
+  BAIDUPCS_CARGO_VARS:=$(CARGO_STATIC_VARS)
 else
+  BAIDUPCS_CARGO_BIN:=$(STAGING_DIR_HOST)/bin/cargo
+  BAIDUPCS_CARGO_VARS:=$(CARGO_DYNAMIC_VARS)
+endif
+
+define Build/Compile/StaticPrep
 	+test -x "$(CARGO_STATIC_BIN)" || { \
 		echo "ERROR: 启用 CONFIG_BAIDUPCS_RUST_STATIC_MUSL 需要在构建宿主上安装 rustup 工具链"; \
 		echo "       (curl https://sh.rustup.rs -sSf | sh)，详见包内 README.md"; exit 1; }; \
-	( cd $(PKG_BUILD_DIR)/backend && $(RUSTUP_BIN) target add $(RUSTC_TARGET_ARCH) ) || true; \
-	$(call Build/Compile/Crate,$(CARGO_STATIC_BIN),$(CARGO_STATIC_VARS),backend)
-endif
-ifneq ($(CONFIG_BAIDUPCS_RUST_DECRYPT_CLI),)
-	$(call Build/Compile/Crate,$(if $(CONFIG_BAIDUPCS_RUST_STATIC_MUSL),$(CARGO_STATIC_BIN),$(STAGING_DIR_HOST)/bin/cargo),$(if $(CONFIG_BAIDUPCS_RUST_STATIC_MUSL),$(CARGO_STATIC_VARS),$(CARGO_DYNAMIC_VARS)),decrypt-cli)
-endif
+	( cd $(PKG_BUILD_DIR)/backend && $(RUSTUP_BIN) target add $(RUSTC_TARGET_ARCH) ) || true
+endef
+
+define Build/Compile
+	$(if $(filter y,$(CONFIG_BAIDUPCS_RUST_STATIC_MUSL)),$(call Build/Compile/StaticPrep))
+	$(call Build/Compile/Crate,$(BAIDUPCS_CARGO_BIN),$(BAIDUPCS_CARGO_VARS),backend)
+	$(if $(filter y,$(CONFIG_BAIDUPCS_RUST_DECRYPT_CLI)),$(call Build/Compile/Crate,$(BAIDUPCS_CARGO_BIN),$(BAIDUPCS_CARGO_VARS),decrypt-cli))
 endef
 
 # ---------------------------------------------------------------------------
